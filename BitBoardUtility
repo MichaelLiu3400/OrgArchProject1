@@ -1,0 +1,280 @@
+//Michael Liu
+//CS 3503: Computer Org and Arch Section 2
+//Professor: Regan
+public class BitBoardUtility {
+    private long boardState, kings, colors;
+    private int whiteKings, blackKings;
+
+    // Constructor to initialize the board
+    public BitBoardUtility() {
+        initializeBoard();
+        whiteKings = 0; blackKings = 0;
+    }
+
+    // Initialize the board with the starting positions
+    public void initializeBoard() {
+        boardState = 0x00000FFF; // Black pieces (positions 0-11)
+        colors = 0;              // Black pieces have color bits set to 0
+        boardState |= 0xFFF00000L; // White pieces (positions 20-31)
+        colors |= 0xFFF00000L;   // White pieces have color bits set to 1
+    }
+
+    // Utility: Set a bit
+    private long setBit(long value, int pos) {
+        return value | (1L << pos);
+    }
+
+    // Utility: Clear a bit
+    private long clearBit(long value, int pos) {
+        return value & ~(1L << pos);
+    }
+
+    // Utility: Check if a bit is set
+    private boolean isBitSet(long value, int pos) {
+        return ((value >> pos) & 1) == 1;
+    }
+
+    // Print the board (as a 2D checkerboard)
+    public void printBoard() {
+        System.out.println("Board:\n ______<Y>______");
+        System.out.println("X 1 2 3 4 5 6 7 8");
+        //r is the row index while c is the column index.//
+        for (int r = 0; r < 8; r++) {
+            System.out.print((r + 1) + " ");
+            for (int c = 0; c < 8; c++) {
+                int pos = r * 4 + c / 2;
+                if ((r % 2 == 0 && c % 2 == 0) || (r % 2 == 1 && c % 2 == 1)) {
+                    System.out.print("  ");
+                } else {
+                    System.out.print(getPieceAsString(pos) + " ");
+                }
+            }
+            System.out.println();
+        }
+    }
+
+    // Get piece as a string representation
+    public String getPieceAsString(int pos) {
+        if (!isBitSet(boardState, pos)) return ".";
+        String piece = isBitSet(colors, pos) ? "W" : "B";
+        return isBitSet(kings, pos) ? piece + "K" : piece;
+    }
+
+    // Move a piece from start position to end position
+    public boolean movePiece(int start, int end) {
+        if (!isSpotOccupied(start)) {
+            System.out.println("No piece at the start!");
+            return false;
+        }
+
+        boolean isKing = isBitSet(kings, start);
+        boolean isWhite = isBitSet(colors, start);
+
+        boardState = clearBit(boardState, start);
+        kings = clearBit(kings, start);
+        colors = clearBit(colors, start);
+
+        boardState = setBit(boardState, end);
+        if (isKing) {
+            kings = setBit(kings, end);
+        }
+        if (isWhite) {
+            colors = setBit(colors, end);
+        }
+
+        updateGameState(end, isWhite);
+        return true;
+    }
+
+    // Check if a move from start to end is legal.
+    public boolean isLegalMove(int start, int end, boolean whitesTurn) {
+        if (isSpotOccupied(end)) {
+            return false;
+        }
+        if (isBitSet(colors, start) != whitesTurn) {
+            System.out.println("This spot does not contain your piece.");
+            return false;
+        }
+
+        int rowDiff = (end / 4) - (start / 4);
+        int colDiff = Math.abs(start % 4 - end % 4);
+        boolean invalidDir = false;
+
+        if (!isBitSet(kings, start)) {
+            if ((whitesTurn && rowDiff != -1) || (!whitesTurn && rowDiff != 1)) {
+                invalidDir = true;
+            }
+        }
+        if (Math.abs(rowDiff) == 1 && colDiff == 1) {
+            if (invalidDir) {
+            System.out.println(whitesTurn ? "You can only move your whites up diagonally, Player 1!" :
+                    "You can only move your blacks down diagonally, Player 2!");
+                }
+                return !invalidDir; //Only move if the direction is valid.
+            }
+
+        //Can you jump over your opponent's piece?//
+        if (Math.abs(rowDiff) == 2 && colDiff == 2) {
+            int midPos = (start + end) / 2;
+            if(capturePiece(midPos, whitesTurn)) {
+                return !invalidDir;
+            }
+        }
+
+        return false;
+    }
+
+    // Check if a specific spot on the board is occupied
+    public boolean isSpotOccupied(int pos) {
+        return isBitSet(boardState, pos);
+    }
+
+    // Capture a piece on the board
+    public boolean capturePiece(int pos, boolean whitesTurn) {
+        if (!isSpotOccupied(pos) || isBitSet(colors, pos) == whitesTurn) {
+            return false;
+        }
+        boolean isKing = isBitSet(kings,pos);
+        boardState = clearBit(boardState, pos);
+        kings = clearBit(kings, pos);
+        colors = clearBit(colors, pos);
+        if (isKing) {
+            if(isBitSet(colors,pos)) {
+                whiteKings--;
+            } else {
+                blackKings--;
+            }
+            System.out.println("Captured king at position " + pos);
+        }
+        System.out.println("Captured piece at position " + pos);
+
+        return true;
+    }
+
+    // Update the game state after each move
+    public void updateGameState(int pos, boolean isWhite) {
+        int row = pos / 4;
+        if ((isWhite && row == 0) || (!isWhite && row == 7)) {
+            kings = setBit(kings, pos);
+            if (isWhite) {
+                whiteKings++;
+            }
+            else {
+                blackKings++;
+            }
+            System.out.println((isWhite? "White" : "Black") + " piece at pos " + pos + " is now a king!");
+        }
+    }
+
+    // Check if a player has any pieces left
+    public boolean hasNoPiecesLeft(boolean isWhite) {
+        for (int i = 0; i < 32; i++) {
+            if (isSpotOccupied(i) && isBitSet(colors, i) == isWhite) return false;
+        }
+        return true;
+    }
+
+    // Check if any piece can make a legal move
+    public boolean canAnyPieceMove(boolean isWhite) {
+        for (int startPos = 0; startPos < 32; startPos++) {
+            if (isSpotOccupied(startPos) && isBitSet(colors, startPos) == isWhite) {
+                for (int endPos = 0; endPos < 32; endPos++) {
+                    if (isLegalMove(startPos, endPos, isWhite)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Convert numeric coordinates to board position
+    public int numericCoordinatesToPos(int r, int c) {
+        r--; c--;
+        if (r < 0 || r >= 8 || c < 0 || c >= 8) {
+            return -1;
+        }
+        if ((r % 2 == 0 && c % 2 == 0) || (r % 2 == 1 && c % 2 == 1)) {
+            return -1;
+        }
+        return r * 4 + c / 2;
+    }
+    public void getKingCts () {
+        System.out.println("White Kings: " + whiteKings);
+        System.out.println("Black Kings: " + blackKings);
+    }
+}
+
+import java.util.Scanner;
+public class Main {
+    public static void main(String[] args) {
+        int start, end, choice = 0;
+        Scanner scan = new Scanner(System.in);
+        boolean whitesTurn = true;
+        BitBoardUtility myBoard = new BitBoardUtility();
+        //This is the game loop.//
+        while (choice != -1) {
+            //Player 1: White, Player 2: Black
+            System.out.println("(1) Start Game, (0) Quit");
+            choice = scan.nextInt();
+            switch (choice) {
+                case 1:
+                    while (true) {
+                        System.out.println("\n");
+                        myBoard.printBoard();
+                        myBoard.getKingCts();
+
+                        //Does the board have no more pieces left?//
+                        if (myBoard.hasNoPiecesLeft(true)) {
+                            System.out.println("Player 2 wins!");
+                            break;
+                        } else if (myBoard.hasNoPiecesLeft(false)) {
+                            System.out.println("Player 1 wins!");
+                            break;
+                        } else if (!myBoard.canAnyPieceMove(whitesTurn)) {
+                            System.out.println("TIE! No player can move!");
+                            break;
+                        }
+
+                        int currPlayer = whitesTurn ? 1 : 2;
+                        System.out.print("It's Player " + currPlayer + "'s turn. Piece: ");
+                        System.out.println(whitesTurn ? "White" : "Black");
+                        System.out.println("What piece do you want to move using x-y coordinate system?");
+                        System.out.print("x=");
+                        int xStart = scan.nextInt();
+                        System.out.print("y=");
+                        int yStart = scan.nextInt();
+                        start = myBoard.numericCoordinatesToPos(xStart, yStart);
+                        if (start == -1) {
+                            System.out.println("You are trying to move a piece not on the board.");
+                        }
+                        if (!myBoard.isSpotOccupied(start)) {
+                            System.out.println("This spot does not have your piece.");
+                            break;
+                        }
+                            System.out.println("Where can we move piece (" + xStart + "," + yStart + ")?");
+                            System.out.print("x=");
+                            int xEnd = scan.nextInt();
+                            System.out.print("y=");
+                            int yEnd = scan.nextInt();
+                            end = myBoard.numericCoordinatesToPos(xEnd, yEnd);
+                            if (end == -1 || myBoard.isLegalMove(start, end, whitesTurn)) {
+                                System.out.println("Move from (" + xStart + "," + yStart + ")->(" + xEnd + "," + yEnd + ") not legal!\n");
+                                continue;
+                            }
+                            //Make that move//
+                            if (myBoard.movePiece(start, end)) {
+                                System.out.println("Player " + currPlayer + " moved: (" + xStart + "," + yStart + ") to (" + xEnd + "," + yEnd + ")\n");
+                                myBoard.getKingCts();
+                                whitesTurn = !whitesTurn; //If White made a successful checkers move, switch to Player 2.//
+                            }
+                        }
+                    break;
+                case 0:
+                    System.out.println("GAME OVER!");
+                    return;
+                default:
+                    System.out.println("Not a valid choice!");
+                    break;
+            }
+        }
+    }
+}
