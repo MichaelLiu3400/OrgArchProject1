@@ -1,6 +1,7 @@
 //Michael Liu
 //CS 3503: Computer Org and Arch Section 2
 //Professor: Regan
+//IDE: Java IntelliJ
 public class BitBoardUtility {
     private long boardState, kings, colors;
     private int whiteKings, blackKings;
